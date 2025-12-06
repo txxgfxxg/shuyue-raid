@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>漱月每周百业本出勤统计</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      color-scheme: light dark;
+    }
+    body {
+      margin: 0;
+      background: #f5f5f7;
+      color: #222;
+    }
+    .app {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0.75rem;
+    }
+    .card {
+      background: #fff;
+      border-radius: 0.75rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      padding: 0.75rem 0.85rem;
+      margin-bottom: 0.75rem;
+    }
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(245,245,247,0.9);
+      backdrop-filter: blur(10px);
+      padding-bottom: 0.5rem;
+    }
+    h1 {
+      font-size: 1.1rem;
+      margin: 0 0 0.45rem 0;
+    }
+    .sub {
+      font-size: 0.8rem;
+      color: #666;
+      margin-bottom: 0.4rem;
+    }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.3rem;
+      flex-wrap: wrap;
+    }
+    .run-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.4rem;
+    }
+    .run-label {
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    select, button {
+      font-size: 0.85rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.5rem;
+      border: 1px solid #ccc;
+      background: #fff;
+    }
+    button {
+      border: none;
+      background: #4c8dff;
+      color: #fff;
+      font-weight: 500;
+    }
+    button.secondary {
+      background: #f0f0f0;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+    button.danger {
+      background: #ff5c5c;
+    }
+    button.outline {
+      background: #fff;
+      color: #333;
+      border: 1px solid #ccc;
+    }
+    button:active {
+      transform: scale(0.97);
+    }
+    .players-container {
+      max-height: 320px;
+      overflow-y: auto;
+      border-radius: 0.5rem;
+      border: 1px solid #eee;
+      padding: 0.4rem 0.5rem;
+      background: #fff;
+    }
+    .player-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.18rem 0.15rem;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    .player-row:last-child {
+      border-bottom: none;
+    }
+    .player-row label {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.85rem;
+    }
+    .player-row input[type="checkbox"] {
+      width: 1.1rem;
+      height: 1.1rem;
+    }
+    .badge-count {
+      font-size: 0.75rem;
+      padding: 0.05rem 0.35rem;
+      border-radius: 999px;
+      background: #eef3ff;
+      color: #3854c8;
+      white-space: nowrap;
+    }
+    .runs-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .run-card-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+    }
+    .run-players {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+    }
+    .pill {
+      padding: 0.1rem 0.45rem;
+      border-radius: 999px;
+      background: #f0f3fa;
+      font-size: 0.8rem;
+    }
+    .pill.empty {
+      background: transparent;
+      color: #999;
+      font-style: italic;
+    }
+    .stats-block-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+    }
+    .stats-list {
+      font-size: 0.82rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+    }
+    .stats-item {
+      padding: 0.1rem 0.4rem;
+      border-radius: 999px;
+      background: #f6f6f6;
+    }
+    .stats-item strong {
+      margin-right: 0.15rem;
+    }
+    /* 参与率数字样式 */
+    .participation-row {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-bottom: 0.35rem;
+      font-size: 0.85rem;
+    }
+    .percent-value {
+      color: #e53935;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    /* Top 玩家颜色分级 */
+    .stats-item.top-max {
+      background: #ff7043;
+      color: #fff;
+    }
+    .stats-item.top-mid {
+      background: #ffcc80;
+      color: #5d4037;
+    }
+    .stats-item.top-low {
+      background: #ffe0b2;
+      color: #6d4c41;
+    }
+    /* 成员管理弹窗 */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 50;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-backdrop.show {
+      display: flex;
+    }
+    .modal {
+      background: #fff;
+      border-radius: 0.75rem;
+      max-width: 520px;
+      width: 92%;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    }
+    .modal-header {
+      padding: 0.55rem 0.9rem;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .modal-header-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .modal-body {
+      padding: 0.5rem 0.9rem;
+      overflow-y: auto;
+    }
+    .modal-footer {
+      padding: 0.5rem 0.9rem 0.7rem;
+      border-top: 1px solid #eee;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+    .member-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.25rem;
+      font-size: 0.8rem;
+    }
+    .member-row span {
+      width: 2rem;
+      color: #888;
+      flex-shrink: 0;
+    }
+    .member-row input[type="text"] {
+      flex: 1;
+      padding: 0.2rem 0.35rem;
+      font-size: 0.8rem;
+      border-radius: 0.35rem;
+      border: 1px solid #ddd;
+    }
+    .modal-tip {
+      font-size: 0.75rem;
+      color: #777;
+      margin-bottom: 0.4rem;
+      line-height: 1.4;
+    }
+    @media (max-width: 600px) {
+      .run-controls {
+        flex-direction: row;
+      }
+      .players-container {
+        max-height: 260px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 顶部控制区 -->
+  <div class="header">
+    <div class="card">
+      <div class="header-row">
+        <div>
+          <h1>漱月每周百业本出勤统计</h1>
+          <div class="sub">步骤：勾选玩家 → 选择车次 →「加入当前车」</div>
+        </div>
+        <button id="manageMembersBtn" class="outline">管理成员名单</button>
+      </div>
+      <div class="run-controls">
+        <span class="run-label">当前车次：</span>
+        <select id="runSelect"></select>
+        <button id="addToRunBtn">加入当前车</button>
+        <button id="clearSelectionBtn" class="secondary">清空勾选</button>
+        <button id="resetBtn" class="danger">重置本周数据</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 玩家勾选区 -->
+  <div class="card">
+    <div class="stats-block-title">玩家列表（点击打勾，加入当前车）</div>
+    <div class="players-container" id="playersContainer">
+      <!-- JS 渲染玩家列表 -->
+    </div>
+  </div>
+
+  <!-- 各车成员展示 -->
+  <div class="card">
+    <div class="stats-block-title">本周各车名单</div>
+    <div id="runsContainer" class="runs-list">
+      <!-- JS 渲染各车 -->
+    </div>
+  </div>
+
+  <!-- 统计信息 -->
+  <div class="card">
+    <!-- 本周参与率 -->
+    <div class="participation-row">
+      <span class="stats-block-title" style="margin-bottom:0;">本周参与率：</span>
+      <span id="participationRate" class="percent-value">0.00%</span>
+    </div>
+
+    <div style="margin-bottom:0.4rem;">
+      <div class="stats-block-title">尚未参与的玩家</div>
+      <div id="notJoined" class="stats-list"></div>
+    </div>
+    <hr style="border:none;border-top:1px solid #eee;margin:0.3rem 0;">
+    <div>
+      <div class="stats-block-title">参与次数最多的玩家（含并列）</div>
+      <div id="topPlayers" class="stats-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 成员管理弹窗 -->
+<div id="modalBackdrop" class="modal-backdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-title">管理成员名单</div>
+      <button id="closeModalBtn" class="secondary" style="padding:0.1rem 0.5rem;">关闭</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-tip">
+        提示：在这里修改玩家ID可用于处理退会与新成员加入。<br>
+        修改某一行的名字将沿用该行的出勤次数统计，请确认这是你期望的行为。
+      </div>
+      <div id="membersEditContainer">
+        <!-- JS 渲染成员编辑行 -->
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="cancelEditBtn" class="secondary">取消</button>
+      <button id="saveMembersBtn">保存修改</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // === 公会成员列表 ===
+  const playerNames = [
+    "淩霁月","诸星渊","小林擒","你爱喝豆汁吗","上官晨湘","細語","嬌鮫","穆兮玄","令狐颐星","漫漫风听兩",
+    "司徒慕兮","半盏诗","灯下绣鸳鸯","小旧印","雾凇丶","姚叹凌","郁饭","竹上骦","璟汌","沐雨楠亭",
+    "未殃君","水溪岚","暮景淮","克灵儿","黎茵楚","鸢冉冉","愚行舟","炫瓏","南桐之王","燕思荠",
+    "相易安","问书宁","寂鸢泊","ソ藏锋","张伊哲","眉愁","烛叶锦","渡冥雪","所谓煎蛋",
+    "欧鸥不保底","朦胧目","江陵利","小熊无能","苏奕沐","一轮明月照大","南宮凝殊","不见古","盛弦心","温言清",
+    "煜塔","白之雾","胤归年","脸大皮还厚","玧山","沁南栀","霁映雪","冉小北","酒壶不装归期","渌水清",
+    "地狱之焰悟空","你上班很累","观鹤去","藏苏骢","是墨亦云","言钰熙","肖芫芫","邪锦鲤","南初离","倚只鱼",
+    "鹤殕","初一初一一","乔之渝","苏兰絮","源徽灵","旧归归","渠华","绒绒免的奇妙","打的喵喵叫","姜知栀栀",
+    "绵阳赵今麦","一气化三清","日落很美","月也翩翩","宴夕起","江玖无铭","安城混子小翊","晏晓轩","林风见","杨小鑫大王",
+    "漫野猫","睡不饱丷","雾碎碎","顾迀丶","卿澍一","式冰","悲铭曲","驹阳","凌林梦"
+  ];
+
+  const MAX_MEMBERS = 100;
+  const RUNS_PER_WEEK = 20;
+  const MAX_PER_RUN = 10;
+
+  // 玩家对象：{ id, name, count }
+  const players = playerNames.slice(0, MAX_MEMBERS).map((name, idx) => ({
+    id: idx,
+    name,
+    count: 0
+  }));
+
+  // runs[0..RUNS_PER_WEEK-1] = [playerId, ...]
+  const runs = Array.from({length: RUNS_PER_WEEK}, () => []);
+
+  const playersContainer = document.getElementById("playersContainer");
+  const runsContainer = document.getElementById("runsContainer");
+  const runSelect = document.getElementById("runSelect");
+  const notJoinedDiv = document.getElementById("notJoined");
+  const topPlayersDiv = document.getElementById("topPlayers");
+  const participationRateSpan = document.getElementById("participationRate");
+  const addToRunBtn = document.getElementById("addToRunBtn");
+  const clearSelectionBtn = document.getElementById("clearSelectionBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const manageMembersBtn = document.getElementById("manageMembersBtn");
+
+  const modalBackdrop = document.getElementById("modalBackdrop");
+  const closeModalBtn = document.getElementById("closeModalBtn");
+  const cancelEditBtn = document.getElementById("cancelEditBtn");
+  const saveMembersBtn = document.getElementById("saveMembersBtn");
+  const membersEditContainer = document.getElementById("membersEditContainer");
+
+  // 初始化车次下拉框
+  function initRunSelect() {
+    for (let i = 0; i < RUNS_PER_WEEK; i++) {
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = `第 ${i+1} 车`;
+      runSelect.appendChild(opt);
+    }
+  }
+
+  // 渲染玩家勾选区域
+  function renderPlayers() {
+    playersContainer.innerHTML = "";
+    players.forEach(p => {
+      const row = document.createElement("div");
+      row.className = "player-row";
+
+      const label = document.createElement("label");
+      label.htmlFor = `player-${p.id}`;
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.id = `player-${p.id}`;
+      checkbox.dataset.playerId = p.id;
+
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = p.name || "(空)";
+
+      const countBadge = document.createElement("span");
+      countBadge.className = "badge-count";
+      countBadge.id = `count-${p.id}`;
+      countBadge.textContent = `出勤：${p.count}`;
+
+      label.appendChild(checkbox);
+      label.appendChild(nameSpan);
+      label.appendChild(countBadge);
+      row.appendChild(label);
+      playersContainer.appendChild(row);
+    });
+  }
+
+  // 更新玩家出勤徽标
+  function updatePlayerBadges() {
+    players.forEach(p => {
+      const el = document.getElementById(`count-${p.id}`);
+      if (el) {
+        el.textContent = `出勤：${p.count}`;
+      }
+    });
+  }
+
+  // 渲染各车列表
+  function renderRuns() {
+    runsContainer.innerHTML = "";
+    runs.forEach((runList, idx) => {
+      const card = document.createElement("div");
+      const title = document.createElement("div");
+      title.className = "run-card-title";
+      title.textContent = `第 ${idx+1} 车（${runList.length}/${MAX_PER_RUN}）`;
+      card.appendChild(title);
+
+      const wrap = document.createElement("div");
+      wrap.className = "run-players";
+
+      if (runList.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "pill empty";
+        empty.textContent = "尚未安排玩家";
+        wrap.appendChild(empty);
+      } else {
+        runList.forEach(pid => {
+          const p = players.find(pp => pp.id === pid);
+          if (!p || !p.name) return;
+          const pill = document.createElement("div");
+          pill.className = "pill";
+          pill.textContent = p.name;
+          wrap.appendChild(pill);
+        });
+      }
+      card.appendChild(wrap);
+      runsContainer.appendChild(card);
+    });
+  }
+
+  // 更新统计信息：参与率、未参与 & Top 玩家
+  function updateStats() {
+    // 有名字的玩家才算有效成员
+    const validPlayers = players.filter(p => p.name && p.name.trim() !== "");
+    const totalPlayers = validPlayers.length;
+    const joinedCount = validPlayers.filter(p => p.count > 0).length;
+    const rate = totalPlayers === 0 ? 0 : (joinedCount / totalPlayers * 100);
+    participationRateSpan.textContent = rate.toFixed(2) + "%";
+
+    // 未参与（仅统计有名字的玩家）
+    const notJoined = validPlayers.filter(p => p.count === 0);
+    notJoinedDiv.innerHTML = "";
+    if (notJoined.length === 0) {
+      const span = document.createElement("span");
+      span.className = "stats-item";
+      span.textContent = "（本周所有玩家均已参与）";
+      notJoinedDiv.appendChild(span);
+    } else {
+      notJoined.forEach(p => {
+        const span = document.createElement("span");
+        span.className = "stats-item";
+        span.textContent = p.name;
+        notJoinedDiv.appendChild(span);
+      });
+    }
+
+    // Top 玩家（含并列）
+    const joined = validPlayers.filter(p => p.count > 0);
+    topPlayersDiv.innerHTML = "";
+    if (joined.length === 0) {
+      const span = document.createElement("span");
+      span.className = "stats-item";
+      span.textContent = "（尚无出勤记录）";
+      topPlayersDiv.appendChild(span);
+      return;
+    }
+    joined.sort((a,b) => b.count - a.count || a.name.localeCompare(b.name, "zh-CN"));
+
+    let topList;
+    if (joined.length <= 10) {
+      topList = joined;
+    } else {
+      const tenthCount = joined[9].count;
+      topList = joined.filter(p => p.count >= tenthCount);
+    }
+
+    const maxCount = topList[0].count;
+
+    topList.forEach(p => {
+      let cls = "stats-item";
+      if (p.count === maxCount) {
+        cls += " top-max";
+      } else if (p.count >= maxCount - 1) {
+        cls += " top-mid";
+      } else {
+        cls += " top-low";
+      }
+      const span = document.createElement("span");
+      span.className = cls;
+      span.innerHTML = `<strong>${p.count}</strong>${p.name}`;
+      topPlayersDiv.appendChild(span);
+    });
+  }
+
+  // 获取当前打勾的玩家 ID 列表
+  function getSelectedPlayerIds() {
+    const checked = playersContainer.querySelectorAll('input[type="checkbox"]:checked');
+    return Array.from(checked).map(chk => parseInt(chk.dataset.playerId, 10));
+  }
+
+  // 清空所有勾选
+  function clearSelection() {
+    const all = playersContainer.querySelectorAll('input[type="checkbox"]');
+    all.forEach(chk => chk.checked = false);
+  }
+
+  // 加入当前车
+  function addToCurrentRun() {
+    const runIdx = parseInt(runSelect.value, 10);
+    const selectedIds = getSelectedPlayerIds();
+    if (selectedIds.length === 0) {
+      alert("请先勾选要加入本车的玩家。");
+      return;
+    }
+    const currentList = runs[runIdx];
+
+    // 过滤掉已经在当前车里的
+    const newIds = selectedIds.filter(pid => !currentList.includes(pid));
+
+    if (currentList.length + newIds.length > MAX_PER_RUN) {
+      alert(`每车最多 ${MAX_PER_RUN} 人，目前已有 ${currentList.length} 人，本次勾选人数过多。`);
+      return;
+    }
+
+    newIds.forEach(pid => {
+      const p = players.find(pp => pp.id === pid);
+      if (!p || !p.name || p.name.trim() === "") return; // 没名字的行不计入
+      currentList.push(pid);
+      p.count += 1;
+    });
+
+    clearSelection();
+    updatePlayerBadges();
+    renderRuns();
+    updateStats();
+  }
+
+  // 重置所有数据
+  function resetAll() {
+    if (!confirm("确认要重置所有车次和本周出勤记录吗？")) return;
+    runs.forEach((list, idx) => runs[idx] = []);
+    players.forEach(p => p.count = 0);
+    clearSelection();
+    updatePlayerBadges();
+    renderRuns();
+    updateStats();
+  }
+
+  // 打开成员管理弹窗
+  function openMembersModal() {
+    // 渲染编辑列表
+    membersEditContainer.innerHTML = "";
+    players.forEach((p, index) => {
+      const row = document.createElement("div");
+      row.className = "member-row";
+
+      const label = document.createElement("span");
+      label.textContent = (index + 1).toString().padStart(2, "0");
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.value = p.name || "";
+      input.dataset.playerId = p.id;
+
+      row.appendChild(label);
+      row.appendChild(input);
+      membersEditContainer.appendChild(row);
+    });
+
+    modalBackdrop.classList.add("show");
+  }
+
+  // 关闭成员管理弹窗（不保存）
+  function closeMembersModal() {
+    modalBackdrop.classList.remove("show");
+  }
+
+  // 保存成员修改
+  function saveMembers() {
+    const inputs = membersEditContainer.querySelectorAll('input[type="text"]');
+    inputs.forEach(input => {
+      const pid = parseInt(input.dataset.playerId, 10);
+      const p = players.find(pp => pp.id === pid);
+      if (!p) return;
+      const newName = input.value.trim();
+      p.name = newName; // 允许空字符串，表示预留空位
+    });
+
+    // 保存后重新渲染主界面
+    renderPlayers();
+    renderRuns();
+    updatePlayerBadges();
+    updateStats();
+    closeMembersModal();
+  }
+
+  // 初始执行
+  initRunSelect();
+  renderPlayers();
+  renderRuns();
+  updateStats();
+
+  // 事件绑定
+  addToRunBtn.addEventListener("click", addToCurrentRun);
+  clearSelectionBtn.addEventListener("click", clearSelection);
+  resetBtn.addEventListener("click", resetAll);
+  manageMembersBtn.addEventListener("click", openMembersModal);
+  closeModalBtn.addEventListener("click", closeMembersModal);
+  cancelEditBtn.addEventListener("click", closeMembersModal);
+  modalBackdrop.addEventListener("click", (e) => {
+    if (e.target === modalBackdrop) {
+      // 点击遮罩空白区域也关闭，但不保存
+      closeMembersModal();
+    }
+  });
+  saveMembersBtn.addEventListener("click", saveMembers);
+</script>
+</body>
+</html>

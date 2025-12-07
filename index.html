@@ -4,8 +4,6 @@
   <meta charset="UTF-8">
   <title>漱月每周百业本出勤统计</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-  <!-- 拼音库，用于拼音首字母搜索 -->
-  <script src="https://unpkg.com/pinyin-pro/dist/pinyin-pro.umd.js"></script>
   <style>
     :root {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -307,7 +305,7 @@
   <!-- 顶部控制区 -->
   <div class="header">
     <div class="card">
-      <div class.header-row>
+      <div class="header-row">
         <div>
           <h1>漱月每周百业本出勤统计</h1>
           <div class="sub">步骤：勾选玩家 → 选择车次 →「加入当前车」</div>
@@ -328,7 +326,7 @@
   <div class="card">
     <div class="stats-block-title">玩家列表（点击打勾，加入当前车）</div>
     <div class="search-row">
-      <input id="playerSearchInput" placeholder="搜索玩家：支持汉字或拼音首字母，如「凌」或「LJY」">
+      <input id="playerSearchInput" placeholder="搜索玩家：输入部分中文或ID片段即可">
     </div>
     <div class="players-container" id="playersContainer">
       <!-- JS 渲染玩家列表 -->
@@ -380,7 +378,7 @@
         修改某一行的名字将沿用该行的出勤次数统计，请确认这是你期望的行为。
       </div>
       <div class="search-row">
-        <input id="memberSearchInput" placeholder="搜索成员：支持汉字或拼音首字母">
+        <input id="memberSearchInput" placeholder="搜索成员：输入部分中文或ID片段">
       </div>
       <div id="membersEditContainer">
         <!-- JS 渲染成员编辑行 -->
@@ -394,7 +392,7 @@
 </div>
 
 <script>
-  const STORAGE_KEY = "shuyueRaid_v1";
+  const STORAGE_KEY = "shuyueRaid_v2_noPinyin";
 
   const playerNames = [
     "淩霁月","诸星渊","小林擒","你爱喝豆汁吗","上官晨湘","細語","嬌鮫","穆兮玄","令狐颐星","漫漫风听兩",
@@ -416,8 +414,7 @@
   const players = playerNames.slice(0, MAX_MEMBERS).map((name, idx) => ({
     id: idx,
     name,
-    count: 0,
-    initials: ""
+    count: 0
   }));
 
   const runs = Array.from({length: RUNS_PER_WEEK}, () => []);
@@ -442,23 +439,6 @@
   const memberSearchInput = document.getElementById("memberSearchInput");
 
   const exportCsvBtn = document.getElementById("exportCsvBtn");
-
-  function computeInitialsForPlayer(p) {
-    if (!window.pinyinPro || !p.name) {
-      p.initials = "";
-      return;
-    }
-    try {
-      const arr = window.pinyinPro.pinyin(p.name, {toneType: "none", type: "array"});
-      p.initials = arr.map(s => (s && s[0] ? s[0].toUpperCase() : "")).join("");
-    } catch (e) {
-      p.initials = "";
-    }
-  }
-
-  function computeAllInitials() {
-    players.forEach(p => computeInitialsForPlayer(p));
-  }
 
   function saveState() {
     const data = {
@@ -617,7 +597,7 @@
       });
     }
 
-    const joined = validPlayers.filter(p => p.count >= 2); // 只统计出勤≥2
+    const joined = validPlayers.filter(p => p.count >= 2);
     topPlayersDiv.innerHTML = "";
     if (joined.length === 0) {
       const span = document.createElement("span");
@@ -744,7 +724,6 @@
       if (!p) return;
       const newName = input.value.trim();
       p.name = newName;
-      computeInitialsForPlayer(p);
     });
 
     renderPlayers();
@@ -758,29 +737,18 @@
   function attachPlayerSearch() {
     const input = playerSearchInput;
     function doFilter() {
-      const qRaw = input.value.trim();
-      const q = qRaw.toUpperCase();
-      const isChineseQuery = /[\u4e00-\u9fa5]/.test(qRaw);
-
+      const q = input.value.trim();
       const rows = playersContainer.querySelectorAll(".player-row");
       rows.forEach(row => {
         const checkbox = row.querySelector('input[type="checkbox"]');
         const pid = parseInt(checkbox.dataset.playerId, 10);
         const p = players.find(pp => pp.id === pid);
         const name = (p.name || "");
-        const initials = (p.initials || "");
-
         if (!q) {
           row.style.display = "flex";
-          return;
-        }
-        let match = false;
-        if (isChineseQuery) {
-          match = name.includes(qRaw);
         } else {
-          match = initials.startsWith(q);
+          row.style.display = name.includes(q) ? "flex" : "none";
         }
-        row.style.display = match ? "flex" : "none";
       });
     }
     input.oninput = doFilter;
@@ -788,29 +756,16 @@
 
   function attachMemberSearch() {
     function doFilterMembers() {
-      const qRaw = memberSearchInput.value.trim();
-      const q = qRaw.toUpperCase();
-      const isChineseQuery = /[\u4e00-\u9fa5]/.test(qRaw);
-
+      const q = memberSearchInput.value.trim();
       const rows = membersEditContainer.querySelectorAll(".member-row");
       rows.forEach(row => {
-        const pid = parseInt(row.dataset.playerId, 10);
-        const p = players.find(pp => pp.id === pid);
         const input = row.querySelector('input[type="text"]');
         const name = input.value || "";
-        const initials = p ? (p.initials || "") : "";
-
         if (!q) {
           row.style.display = "flex";
-          return;
-        }
-        let match = false;
-        if (isChineseQuery) {
-          match = name.includes(qRaw);
         } else {
-          match = initials.startsWith(q);
+          row.style.display = name.includes(q) ? "flex" : "none";
         }
-        row.style.display = match ? "flex" : "none";
       });
     }
     memberSearchInput.oninput = doFilterMembers;
@@ -835,9 +790,7 @@
     URL.revokeObjectURL(url);
   }
 
-  // 初始化顺序：先载入状态 → 计算首字母 → 渲染
   loadState();
-  computeAllInitials();
   initRunSelect();
   renderPlayers();
   renderRuns();

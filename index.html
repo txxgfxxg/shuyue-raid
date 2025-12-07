@@ -214,10 +214,6 @@
     .search-row input {
       flex: 1;
     }
-    .search-row small {
-      font-size: 0.75rem;
-      color: #777;
-    }
     /* 成员管理弹窗 */
     .modal-backdrop {
       display: none;
@@ -328,22 +324,17 @@
     <div class="search-row">
       <input id="playerSearchInput" placeholder="搜索玩家：输入部分中文或ID片段即可">
     </div>
-    <div class="players-container" id="playersContainer">
-      <!-- JS 渲染玩家列表 -->
-    </div>
+    <div class="players-container" id="playersContainer"></div>
   </div>
 
   <!-- 各车成员展示 -->
   <div class="card">
     <div class="stats-block-title">本周各车名单（点击名字可从该车移除）</div>
-    <div id="runsContainer" class="runs-list">
-      <!-- JS 渲染各车 -->
-    </div>
+    <div id="runsContainer" class="runs-list"></div>
   </div>
 
   <!-- 统计信息 -->
   <div class="card">
-    <!-- 本周参与率 -->
     <div class="participation-row">
       <span class="stats-block-title" style="margin-bottom:0;">本周参与率：</span>
       <span id="participationRate" class="percent-value">0.00%</span>
@@ -380,9 +371,7 @@
       <div class="search-row">
         <input id="memberSearchInput" placeholder="搜索成员：输入部分中文或ID片段">
       </div>
-      <div id="membersEditContainer">
-        <!-- JS 渲染成员编辑行 -->
-      </div>
+      <div id="membersEditContainer"></div>
     </div>
     <div class="modal-footer">
       <button id="cancelEditBtn" class="secondary">取消</button>
@@ -392,7 +381,7 @@
 </div>
 
 <script>
-  const STORAGE_KEY = "shuyueRaid_v2_noPinyin";
+  const STORAGE_KEY = "shuyueRaid_v3_fixed100";
 
   const playerNames = [
     "淩霁月","诸星渊","小林擒","你爱喝豆汁吗","上官晨湘","細語","嬌鮫","穆兮玄","令狐颐星","漫漫风听兩",
@@ -411,9 +400,10 @@
   const RUNS_PER_WEEK = 20;
   const MAX_PER_RUN = 10;
 
-  const players = playerNames.slice(0, MAX_MEMBERS).map((name, idx) => ({
+  // ★ 关键改动：始终生成 100 行，超过名单部分为默认空
+  const players = Array.from({length: MAX_MEMBERS}, (_, idx) => ({
     id: idx,
-    name,
+    name: playerNames[idx] || "",
     count: 0
   }));
 

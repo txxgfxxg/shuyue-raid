@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <title>漱月每周百业本出勤统计</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <!-- 拼音库，用于拼音首字母搜索 -->
+  <script src="https://unpkg.com/pinyin-pro/dist/pinyin-pro.umd.js"></script>
   <style>
     :root {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -63,7 +65,7 @@
       font-size: 0.9rem;
       font-weight: 600;
     }
-    select, button {
+    select, button, input {
       font-size: 0.85rem;
       padding: 0.25rem 0.5rem;
       border-radius: 0.5rem;
@@ -149,11 +151,13 @@
       border-radius: 999px;
       background: #f0f3fa;
       font-size: 0.8rem;
+      cursor: pointer;
     }
     .pill.empty {
       background: transparent;
       color: #999;
       font-style: italic;
+      cursor: default;
     }
     .stats-block-title {
       font-size: 0.9rem;
@@ -174,7 +178,6 @@
     .stats-item strong {
       margin-right: 0.15rem;
     }
-    /* 参与率数字样式 */
     .participation-row {
       display: flex;
       align-items: center;
@@ -187,7 +190,6 @@
       font-weight: 600;
       font-size: 0.95rem;
     }
-    /* Top 玩家颜色分级 */
     .stats-item.top-max {
       background: #ff7043;
       color: #fff;
@@ -199,6 +201,24 @@
     .stats-item.top-low {
       background: #ffe0b2;
       color: #6d4c41;
+    }
+    .stats-footer {
+      margin-top: 0.45rem;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .search-row {
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .search-row input {
+      flex: 1;
+    }
+    .search-row small {
+      font-size: 0.75rem;
+      color: #777;
     }
     /* 成员管理弹窗 */
     .modal-backdrop {
@@ -287,7 +307,7 @@
   <!-- 顶部控制区 -->
   <div class="header">
     <div class="card">
-      <div class="header-row">
+      <div class.header-row>
         <div>
           <h1>漱月每周百业本出勤统计</h1>
           <div class="sub">步骤：勾选玩家 → 选择车次 →「加入当前车」</div>
@@ -307,6 +327,9 @@
   <!-- 玩家勾选区 -->
   <div class="card">
     <div class="stats-block-title">玩家列表（点击打勾，加入当前车）</div>
+    <div class="search-row">
+      <input id="playerSearchInput" placeholder="搜索玩家：支持汉字或拼音首字母，如「凌」或「LJY」">
+    </div>
     <div class="players-container" id="playersContainer">
       <!-- JS 渲染玩家列表 -->
     </div>
@@ -314,7 +337,7 @@
 
   <!-- 各车成员展示 -->
   <div class="card">
-    <div class="stats-block-title">本周各车名单</div>
+    <div class="stats-block-title">本周各车名单（点击名字可从该车移除）</div>
     <div id="runsContainer" class="runs-list">
       <!-- JS 渲染各车 -->
     </div>
@@ -334,8 +357,11 @@
     </div>
     <hr style="border:none;border-top:1px solid #eee;margin:0.3rem 0;">
     <div>
-      <div class="stats-block-title">参与次数最多的玩家（含并列）</div>
+      <div class="stats-block-title">参与次数最多的玩家（含并列，出勤≥2）</div>
       <div id="topPlayers" class="stats-list"></div>
+    </div>
+    <div class="stats-footer">
+      <button id="exportCsvBtn" class="outline">导出本周数据（CSV / Excel）</button>
     </div>
   </div>
 
@@ -353,6 +379,9 @@
         提示：在这里修改玩家ID可用于处理退会与新成员加入。<br>
         修改某一行的名字将沿用该行的出勤次数统计，请确认这是你期望的行为。
       </div>
+      <div class="search-row">
+        <input id="memberSearchInput" placeholder="搜索成员：支持汉字或拼音首字母">
+      </div>
       <div id="membersEditContainer">
         <!-- JS 渲染成员编辑行 -->
       </div>
@@ -365,7 +394,8 @@
 </div>
 
 <script>
-  // === 公会成员列表 ===
+  const STORAGE_KEY = "shuyueRaid_v1";
+
   const playerNames = [
     "淩霁月","诸星渊","小林擒","你爱喝豆汁吗","上官晨湘","細語","嬌鮫","穆兮玄","令狐颐星","漫漫风听兩",
     "司徒慕兮","半盏诗","灯下绣鸳鸯","小旧印","雾凇丶","姚叹凌","郁饭","竹上骦","璟汌","沐雨楠亭",
@@ -383,14 +413,13 @@
   const RUNS_PER_WEEK = 20;
   const MAX_PER_RUN = 10;
 
-  // 玩家对象：{ id, name, count }
   const players = playerNames.slice(0, MAX_MEMBERS).map((name, idx) => ({
     id: idx,
     name,
-    count: 0
+    count: 0,
+    initials: ""
   }));
 
-  // runs[0..RUNS_PER_WEEK-1] = [playerId, ...]
   const runs = Array.from({length: RUNS_PER_WEEK}, () => []);
 
   const playersContainer = document.getElementById("playersContainer");
@@ -403,14 +432,71 @@
   const clearSelectionBtn = document.getElementById("clearSelectionBtn");
   const resetBtn = document.getElementById("resetBtn");
   const manageMembersBtn = document.getElementById("manageMembersBtn");
+  const playerSearchInput = document.getElementById("playerSearchInput");
 
   const modalBackdrop = document.getElementById("modalBackdrop");
   const closeModalBtn = document.getElementById("closeModalBtn");
   const cancelEditBtn = document.getElementById("cancelEditBtn");
   const saveMembersBtn = document.getElementById("saveMembersBtn");
   const membersEditContainer = document.getElementById("membersEditContainer");
+  const memberSearchInput = document.getElementById("memberSearchInput");
 
-  // 初始化车次下拉框
+  const exportCsvBtn = document.getElementById("exportCsvBtn");
+
+  function computeInitialsForPlayer(p) {
+    if (!window.pinyinPro || !p.name) {
+      p.initials = "";
+      return;
+    }
+    try {
+      const arr = window.pinyinPro.pinyin(p.name, {toneType: "none", type: "array"});
+      p.initials = arr.map(s => (s && s[0] ? s[0].toUpperCase() : "")).join("");
+    } catch (e) {
+      p.initials = "";
+    }
+  }
+
+  function computeAllInitials() {
+    players.forEach(p => computeInitialsForPlayer(p));
+  }
+
+  function saveState() {
+    const data = {
+      players: players.map(p => ({name: p.name, count: p.count})),
+      runs: runs
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn("无法保存到本地存储：", e);
+    }
+  }
+
+  function loadState() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      if (data.players && Array.isArray(data.players)) {
+        data.players.forEach((dp, idx) => {
+          if (idx < players.length) {
+            players[idx].name = dp.name || "";
+            players[idx].count = dp.count || 0;
+          }
+        });
+      }
+      if (data.runs && Array.isArray(data.runs)) {
+        data.runs.forEach((r, idx) => {
+          if (idx < runs.length && Array.isArray(r)) {
+            runs[idx] = r.filter(pid => typeof pid === "number");
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("本地存储解析失败：", e);
+    }
+  }
+
   function initRunSelect() {
     for (let i = 0; i < RUNS_PER_WEEK; i++) {
       const opt = document.createElement("option");
@@ -420,7 +506,6 @@
     }
   }
 
-  // 渲染玩家勾选区域
   function renderPlayers() {
     playersContainer.innerHTML = "";
     players.forEach(p => {
@@ -449,19 +534,16 @@
       row.appendChild(label);
       playersContainer.appendChild(row);
     });
+    attachPlayerSearch();
   }
 
-  // 更新玩家出勤徽标
   function updatePlayerBadges() {
     players.forEach(p => {
       const el = document.getElementById(`count-${p.id}`);
-      if (el) {
-        el.textContent = `出勤：${p.count}`;
-      }
+      if (el) el.textContent = `出勤：${p.count}`;
     });
   }
 
-  // 渲染各车列表
   function renderRuns() {
     runsContainer.innerHTML = "";
     runs.forEach((runList, idx) => {
@@ -486,6 +568,10 @@
           const pill = document.createElement("div");
           pill.className = "pill";
           pill.textContent = p.name;
+          pill.dataset.playerId = pid;
+          pill.dataset.runIdx = idx;
+          pill.title = "点击移出本车";
+          pill.addEventListener("click", () => removeFromRun(idx, pid));
           wrap.appendChild(pill);
         });
       }
@@ -494,16 +580,27 @@
     });
   }
 
-  // 更新统计信息：参与率、未参与 & Top 玩家
+  function removeFromRun(runIdx, playerId) {
+    const list = runs[runIdx];
+    const idx = list.indexOf(playerId);
+    if (idx !== -1) {
+      list.splice(idx, 1);
+      const p = players.find(pp => pp.id === playerId);
+      if (p && p.count > 0) p.count -= 1;
+      updatePlayerBadges();
+      renderRuns();
+      updateStats();
+      saveState();
+    }
+  }
+
   function updateStats() {
-    // 有名字的玩家才算有效成员
     const validPlayers = players.filter(p => p.name && p.name.trim() !== "");
     const totalPlayers = validPlayers.length;
     const joinedCount = validPlayers.filter(p => p.count > 0).length;
     const rate = totalPlayers === 0 ? 0 : (joinedCount / totalPlayers * 100);
     participationRateSpan.textContent = rate.toFixed(2) + "%";
 
-    // 未参与（仅统计有名字的玩家）
     const notJoined = validPlayers.filter(p => p.count === 0);
     notJoinedDiv.innerHTML = "";
     if (notJoined.length === 0) {
@@ -520,13 +617,12 @@
       });
     }
 
-    // Top 玩家（含并列）
-    const joined = validPlayers.filter(p => p.count > 0);
+    const joined = validPlayers.filter(p => p.count >= 2); // 只统计出勤≥2
     topPlayersDiv.innerHTML = "";
     if (joined.length === 0) {
       const span = document.createElement("span");
       span.className = "stats-item";
-      span.textContent = "（尚无出勤记录）";
+      span.textContent = "（尚无出勤≥2的记录）";
       topPlayersDiv.appendChild(span);
       return;
     }
@@ -558,19 +654,16 @@
     });
   }
 
-  // 获取当前打勾的玩家 ID 列表
   function getSelectedPlayerIds() {
     const checked = playersContainer.querySelectorAll('input[type="checkbox"]:checked');
     return Array.from(checked).map(chk => parseInt(chk.dataset.playerId, 10));
   }
 
-  // 清空所有勾选
   function clearSelection() {
     const all = playersContainer.querySelectorAll('input[type="checkbox"]');
     all.forEach(chk => chk.checked = false);
   }
 
-  // 加入当前车
   function addToCurrentRun() {
     const runIdx = parseInt(runSelect.value, 10);
     const selectedIds = getSelectedPlayerIds();
@@ -580,7 +673,6 @@
     }
     const currentList = runs[runIdx];
 
-    // 过滤掉已经在当前车里的
     const newIds = selectedIds.filter(pid => !currentList.includes(pid));
 
     if (currentList.length + newIds.length > MAX_PER_RUN) {
@@ -590,7 +682,7 @@
 
     newIds.forEach(pid => {
       const p = players.find(pp => pp.id === pid);
-      if (!p || !p.name || p.name.trim() === "") return; // 没名字的行不计入
+      if (!p || !p.name || p.name.trim() === "") return;
       currentList.push(pid);
       p.count += 1;
     });
@@ -599,9 +691,9 @@
     updatePlayerBadges();
     renderRuns();
     updateStats();
+    saveState();
   }
 
-  // 重置所有数据
   function resetAll() {
     if (!confirm("确认要重置所有车次和本周出勤记录吗？")) return;
     runs.forEach((list, idx) => runs[idx] = []);
@@ -610,15 +702,25 @@
     updatePlayerBadges();
     renderRuns();
     updateStats();
+    saveState();
   }
 
-  // 打开成员管理弹窗
   function openMembersModal() {
-    // 渲染编辑列表
+    renderMembersEditList();
+    memberSearchInput.value = "";
+    modalBackdrop.classList.add("show");
+  }
+
+  function closeMembersModal() {
+    modalBackdrop.classList.remove("show");
+  }
+
+  function renderMembersEditList() {
     membersEditContainer.innerHTML = "";
     players.forEach((p, index) => {
       const row = document.createElement("div");
       row.className = "member-row";
+      row.dataset.playerId = p.id;
 
       const label = document.createElement("span");
       label.textContent = (index + 1).toString().padStart(2, "0");
@@ -632,16 +734,8 @@
       row.appendChild(input);
       membersEditContainer.appendChild(row);
     });
-
-    modalBackdrop.classList.add("show");
   }
 
-  // 关闭成员管理弹窗（不保存）
-  function closeMembersModal() {
-    modalBackdrop.classList.remove("show");
-  }
-
-  // 保存成员修改
   function saveMembers() {
     const inputs = membersEditContainer.querySelectorAll('input[type="text"]');
     inputs.forEach(input => {
@@ -649,24 +743,108 @@
       const p = players.find(pp => pp.id === pid);
       if (!p) return;
       const newName = input.value.trim();
-      p.name = newName; // 允许空字符串，表示预留空位
+      p.name = newName;
+      computeInitialsForPlayer(p);
     });
 
-    // 保存后重新渲染主界面
     renderPlayers();
     renderRuns();
     updatePlayerBadges();
     updateStats();
+    saveState();
     closeMembersModal();
   }
 
-  // 初始执行
+  function attachPlayerSearch() {
+    const input = playerSearchInput;
+    function doFilter() {
+      const qRaw = input.value.trim();
+      const q = qRaw.toUpperCase();
+      const isChineseQuery = /[\u4e00-\u9fa5]/.test(qRaw);
+
+      const rows = playersContainer.querySelectorAll(".player-row");
+      rows.forEach(row => {
+        const checkbox = row.querySelector('input[type="checkbox"]');
+        const pid = parseInt(checkbox.dataset.playerId, 10);
+        const p = players.find(pp => pp.id === pid);
+        const name = (p.name || "");
+        const initials = (p.initials || "");
+
+        if (!q) {
+          row.style.display = "flex";
+          return;
+        }
+        let match = false;
+        if (isChineseQuery) {
+          match = name.includes(qRaw);
+        } else {
+          match = initials.startsWith(q);
+        }
+        row.style.display = match ? "flex" : "none";
+      });
+    }
+    input.oninput = doFilter;
+  }
+
+  function attachMemberSearch() {
+    function doFilterMembers() {
+      const qRaw = memberSearchInput.value.trim();
+      const q = qRaw.toUpperCase();
+      const isChineseQuery = /[\u4e00-\u9fa5]/.test(qRaw);
+
+      const rows = membersEditContainer.querySelectorAll(".member-row");
+      rows.forEach(row => {
+        const pid = parseInt(row.dataset.playerId, 10);
+        const p = players.find(pp => pp.id === pid);
+        const input = row.querySelector('input[type="text"]');
+        const name = input.value || "";
+        const initials = p ? (p.initials || "") : "";
+
+        if (!q) {
+          row.style.display = "flex";
+          return;
+        }
+        let match = false;
+        if (isChineseQuery) {
+          match = name.includes(qRaw);
+        } else {
+          match = initials.startsWith(q);
+        }
+        row.style.display = match ? "flex" : "none";
+      });
+    }
+    memberSearchInput.oninput = doFilterMembers;
+  }
+
+  function exportCsv() {
+    const validPlayers = players.filter(p => p.name && p.name.trim() !== "");
+    let header = "玩家ID,出勤次数\n";
+    const lines = validPlayers.map(p => {
+      const safeName = `"${p.name.replace(/"/g, '""')}"`;
+      return `${safeName},${p.count}`;
+    });
+    const csv = header + lines.join("\n");
+    const blob = new Blob([csv], {type: "text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "漱月百业本出勤统计.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // 初始化顺序：先载入状态 → 计算首字母 → 渲染
+  loadState();
+  computeAllInitials();
   initRunSelect();
   renderPlayers();
   renderRuns();
+  updatePlayerBadges();
   updateStats();
+  attachMemberSearch();
 
-  // 事件绑定
   addToRunBtn.addEventListener("click", addToCurrentRun);
   clearSelectionBtn.addEventListener("click", clearSelection);
   resetBtn.addEventListener("click", resetAll);
@@ -674,12 +852,10 @@
   closeModalBtn.addEventListener("click", closeMembersModal);
   cancelEditBtn.addEventListener("click", closeMembersModal);
   modalBackdrop.addEventListener("click", (e) => {
-    if (e.target === modalBackdrop) {
-      // 点击遮罩空白区域也关闭，但不保存
-      closeMembersModal();
-    }
+    if (e.target === modalBackdrop) closeMembersModal();
   });
   saveMembersBtn.addEventListener("click", saveMembers);
+  exportCsvBtn.addEventListener("click", exportCsv);
 </script>
 </body>
 </html>
